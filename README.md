@@ -25,15 +25,51 @@ Utilisé par le bot **Bot Récupération News** via l’URL configurée dans `rs
 
 | Méthode | Quand l’utiliser |
 | --- | --- |
-| **[A — Git + SSH](#méthode-a--git--ssh-recommandée)** | Vous avez accès SSH/Terminal cPanel (recommandé) |
-| **[B — ZIP depuis Windows](#méthode-b--upload-zip-depuis-windows)** | Pas de SSH, ou build échoue sur le serveur (mémoire insuffisante) |
+| **[A — Git + build local + upload](#méthode-a--git--build-local--upload-recommandée-namecheap)** | **Recommandé Namecheap mutualisé** — git sur le serveur, build sur PC |
+| **[B — ZIP depuis Windows](#méthode-b--upload-zip-depuis-windows)** | Alternative sans git sur le serveur |
 
-> **Attention :** les scripts `.ps1` (`prepare.ps1`, `pack-deploy.ps1`) sont **Windows PowerShell uniquement**.  
-> Sur le serveur Linux (SSH/bash), utilisez **`./scripts/prepare.sh`** — jamais `.\scripts\pack-deploy.ps1`.
+> **Namecheap mutualisé :** le build RSSHub **échoue sur le serveur** (`unable to create thread`). Buildez sur **votre PC**, uploadez `deploy.zip`. `./scripts/prepare.sh` = **VPS uniquement**.
 
 ---
 
-## Méthode A — Git + SSH (recommandée)
+## Méthode A — Git + build local + upload (recommandée Namecheap)
+
+### Vue d'ensemble
+
+```
+1. Terminal cPanel → git clone rsshub-cpanel + app Node.js
+2. PC Windows → prepare.ps1 + pack-deploy.ps1
+3. Upload deploy.zip dans File Manager
+4. .env + variables cPanel + Run NPM Install + Restart
+```
+
+### Guide rapide — votre cas (araszfcr)
+
+**1. Serveur — nettoyer le clone incomplet :**
+
+```bash
+rm -rf ~/rsshub-cpanel/RSSHub
+```
+
+**2. PC Windows :**
+
+```powershell
+cd "c:\Users\simohammed\Desktop\rsshub-cpanel"
+.\scripts\prepare.ps1
+copy .env.example .env
+notepad .env
+.\scripts\pack-deploy.ps1
+```
+
+**3. cPanel File Manager** → `/home/araszfcr/rsshub-cpanel/` → uploadez `deploy.zip` → **Extract**
+
+**4. cPanel :** Environment variables → Run NPM Install → Restart
+
+---
+
+## Méthode A (VPS uniquement) — Git + build sur le serveur
+
+> **Ignorez cette section sur Namecheap mutualisé** — le serveur manque de RAM/processus pour cloner et compiler RSSHub.
 
 ### Vue d’ensemble
 
@@ -328,7 +364,8 @@ rsshub-cpanel/
 | `bash: .scriptspack-deploy.ps1: command not found` | Script **Windows** — sur Terminal cPanel utilisez `./scripts/prepare.sh` |
 | `node: command not found` | **Normal** avant création de l’app Node.js. Créez l’app dans **Setup Node.js App**, puis exécutez la commande `source /home/.../nodevenv/.../bin/activate` copiée depuis l’écran Edit |
 | `Cannot find module '.../nodevenv/.../lib/scripts/prepare.mjs'` | Mettez à jour le dépôt (`git pull`) — le script npm s’appelle maintenant `build-rsshub`, plus `prepare` |
-| `pthread_create: Resource temporarily unavailable` | Limite RAM/processus du mutualisé — buildez en local ([méthode B](#méthode-b--upload-zip-depuis-windows)) |
+| `unable to create thread: Resource temporarily unavailable` | **Limite mutualisé** — ne buildez pas sur le serveur. Utilisez `prepare.ps1` + `pack-deploy.ps1` sur PC, uploadez `deploy.zip` |
+| `pthread_create: Resource temporarily unavailable` | Idem — build local obligatoire sur Namecheap mutualisé |
 | `node -v` fonctionne mais `./scripts/prepare.sh` échoue | Relancez `./scripts/prepare.sh` **dans** l’environnement virtuel (`source ...` d’abord) |
 | Page blanche / 503 | Logs Passenger ou `~/rsshub-cpanel/stderr.log` |
 | `RSSHub/dist/index.mjs` introuvable | Relancez `./scripts/prepare.sh` (SSH) ou re-uploadez un ZIP buildé en local |
@@ -354,7 +391,18 @@ npm install
 
 ## Mise à jour RSSHub
 
-### Via Git + Terminal cPanel
+### Via Git + build local (Namecheap mutualisé)
+
+```powershell
+# Sur PC Windows
+cd RSSHub; git pull; cd ..
+node scripts/prepare.mjs
+.\scripts\pack-deploy.ps1
+```
+
+Uploadez `deploy.zip` sur cPanel, puis **Restart**.
+
+### Via Git + Terminal (VPS uniquement)
 
 ```bash
 source /home/araszfcr/nodevenv/rsshub-cpanel/22/bin/activate && cd /home/araszfcr/rsshub-cpanel
