@@ -1,8 +1,9 @@
-# RSSHub — déploiement cPanel Namecheap (Terminal)
+# RSSHub PHP — cPanel Namecheap
 
-Projet pour héberger [RSSHub](https://github.com/DIYgod/RSSHub) sur un hébergement **Namecheap** via **cPanel** et le **Terminal cPanel**.
+Alternative **PHP** à RSSHub Node.js pour hébergement **Namecheap / cPanel**.  
+Compatible avec le bot **Bot Récupération News** via les mêmes URLs RSSHub (`/twitter/user/...`).
 
-Utilisé par le bot **Bot Récupération News** via l’URL configurée dans `rsshub_url`.
+> **Pourquoi PHP ?** Sur l'hébergement mutualisé Namecheap, Node.js est souvent instable (Passenger, limites mémoire, `pthread_create`). PHP et cURL fonctionnent nativement sur tous les plans cPanel.
 
 ---
 
@@ -10,162 +11,79 @@ Utilisé par le bot **Bot Récupération News** via l’URL configurée dans `rs
 
 | Élément | Détail |
 | --- | --- |
-| Hébergement Namecheap | Plan **Stellar Plus** ou **Stellar Business** (Node.js requis) |
-| cPanel | Accès avec **Setup Node.js App** et **Terminal** activés |
-| Node.js | Version **22+** (fourni par cPanel) |
-| Git | Pour cloner le dépôt sur le serveur |
-| Sous-domaine | Recommandé : `rsshub.votredomaine.com` |
-
-> Les plans Stellar **Basic** / **EasyWP** ne proposent pas Node.js — vérifiez votre offre dans le portail Namecheap avant de commencer.
+| Hébergement Namecheap | Tout plan **cPanel** (Stellar Basic inclus) |
+| PHP | **7.4+** (8.x recommandé) |
+| Extension PHP | `curl` activée |
+| Compte X (Twitter) | Cookies `auth_token` + `ct0` |
 
 ---
 
-## Déploiement via Terminal cPanel
-
-### Vue d’ensemble
-
-```
-1. Créer le sous-domaine dans cPanel
-2. Terminal cPanel → git clone
-3. Créer l’application Node.js dans cPanel  ← AVANT d’utiliser node
-4. Activer l’environnement virtuel Node (commande source)
-5. ./scripts/prepare.sh  (clone + build RSSHub)
-6. Configurer .env (token X)
-7. Variables d’environnement + Run NPM Install + Restart
-8. SSL + test
-```
-
-> **Important :** sur cPanel, `node` n’existe **pas** dans le Terminal tant que vous n’avez pas créé l’app Node.js et activé son environnement virtuel.
-
----
-
-## Guide pas à pas
+## Déploiement sur cPanel
 
 ### Étape 1 — Créer le sous-domaine
 
 1. cPanel → **Domains** → **Subdomains**
 2. **Subdomain** : `rsshub` · **Domain** : `votredomaine.com`
-3. Cliquez **Create**
+3. **Create**
 
-### Étape 2 — Ouvrir le Terminal cPanel
+Notez le dossier document root (ex. `/home/user/rsshub.votredomaine.com`).
 
-cPanel → **Advanced** → **Terminal**
+### Étape 2 — Uploader les fichiers
 
-### Étape 3 — Cloner le dépôt
+Uploadez **tout le contenu** de ce dépôt dans le dossier du sous-domaine :
+
+```
+index.php
+.htaccess
+config.php.example
+lib/
+cache/
+```
+
+Via **File Manager**, **FTP** ou Terminal cPanel :
 
 ```bash
-cd ~
-git clone https://github.com/SeemoAzz/rsshub-cpanel.git
-cd rsshub-cpanel
+cd ~/rsshub.votredomaine.com
+git clone https://github.com/SeemoAzz/rsshub-cpanel.git .
 ```
 
-### Étape 4 — Créer l’application Node.js
+### Étape 3 — Configurer
 
-**À faire avant** `./scripts/prepare.sh` — sinon `node: command not found`.
+1. Renommez `config.php.example` → `config.php`
+2. Éditez `config.php` :
 
-1. cPanel → **Setup Node.js App** → **Create Application**
-2. Paramètres :
+```php
+return [
+    'TWITTER_AUTH_TOKEN' => 'votre_auth_token',
+    'TWITTER_CT0' => 'votre_ct0',
+    'CACHE_TTL' => 300,
+];
+```
 
-| Champ | Valeur |
-| --- | --- |
-| **Node.js version** | 22.x |
-| **Application mode** | Production |
-| **Application root** | `rsshub-cpanel` |
-| **Application URL** | `rsshub.votredomaine.com` |
-| **Application startup file** | `app.js` |
+**Obtenir les cookies X :**
 
-3. Cliquez **Create**
+1. Connectez-vous sur [x.com](https://x.com)
+2. **F12** → **Application** → **Cookies** → `https://x.com`
+3. Copiez `auth_token` et `ct0`
 
-> Le **Application root** est relatif à `/home/VOTRE_USER/`. Exemple : `/home/araszfcr/rsshub-cpanel`.
-
-### Étape 5 — Activer Node.js dans le Terminal
-
-1. **Setup Node.js App** → icône **Edit** (crayon) sur votre app
-2. Copiez la commande affichée :
-
-> *Enter to the virtual environment. To enter to virtual environment, run the command:*
-
-Elle ressemble à :
+### Étape 4 — Permissions cache
 
 ```bash
-source /home/VOTRE_USER/nodevenv/rsshub-cpanel/22/bin/activate && cd /home/VOTRE_USER/rsshub-cpanel
+chmod 755 cache
 ```
 
-3. Collez-la dans le **Terminal cPanel**
+Ou via File Manager : dossier `cache/` → Permissions → `755`.
 
-Vérifiez :
+### Étape 5 — SSL et test
 
-```bash
-node -v    # v22.x
-npm -v
+1. cPanel → **SSL/TLS Status** → **Run AutoSSL**
+2. Testez :
+
+```
+https://rsshub.votredomaine.com/twitter/user/Reuters
 ```
 
-### Étape 6 — Builder RSSHub
-
-**Dans le même terminal** (environnement virtuel activé) :
-
-```bash
-chmod +x scripts/prepare.sh
-./scripts/prepare.sh
-```
-
-Ce script :
-
-1. Installe `dotenv` à la racine
-2. Télécharge un **bundle RSSHub précompilé** (GitHub Releases) — pas de compilation sur le serveur
-3. En secours seulement : compile RSSHub localement si le bundle est indisponible
-4. Crée `.env` depuis `.env.example` si absent
-
-> **Première installation :** le bundle est généré par GitHub Actions. Si `./scripts/prepare.sh` indique que le bundle est introuvable, allez sur GitHub → **Actions** → **Build RSSHub bundle** → **Run workflow**, attendez 5–10 min, puis relancez le script.
-
-Vérifiez le build :
-
-```bash
-ls RSSHub/dist/index.mjs
-```
-
-### Étape 7 — Configurer le token X
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Ajoutez votre cookie `auth_token` :
-
-```env
-TWITTER_AUTH_TOKEN=votre_auth_token_ici
-```
-
-Sauvegardez : `Ctrl+O` → Entrée → `Ctrl+X`.
-
-### Étape 8 — Variables d’environnement cPanel
-
-Dans **Setup Node.js App** → votre app → **Environment variables** :
-
-| Variable | Valeur |
-| --- | --- |
-| `TWITTER_AUTH_TOKEN` | votre token X |
-| `CACHE_TYPE` | `memory` |
-| `LISTEN_INADDR_ANY` | `1` |
-| `ENABLE_CLUSTER` | `0` |
-| `NODE_ENV` | `production` |
-
-> Ne définissez **pas** `PORT` — cPanel/Passenger le gère.
-
-### Étape 9 — Démarrer l’application
-
-1. **Run NPM Install**
-2. **Restart**
-
-Consultez les logs en cas d’erreur : **Open logs** ou `~/rsshub-cpanel/stderr.log`.
-
-### Étape 10 — SSL et test
-
-1. cPanel → **SSL/TLS Status** → **Run AutoSSL** pour `rsshub.votredomaine.com`
-2. Testez : `https://rsshub.votredomaine.com/twitter/user/Reuters`
-
-### Étape 11 — Connecter le bot
+### Étape 6 — Connecter le bot
 
 ```yaml
 rsshub_url: https://rsshub.votredomaine.com
@@ -173,23 +91,15 @@ rsshub_url: https://rsshub.votredomaine.com
 
 ---
 
-## Configurer le token X (Twitter)
+## Routes compatibles RSSHub
 
-Les routes `/twitter/*` nécessitent un cookie `auth_token` valide.
-
-1. Connectez-vous sur [x.com](https://x.com)
-2. **F12** → **Application** → **Cookies** → `https://x.com` → copiez **`auth_token`**
-3. Collez-le dans `.env` via le Terminal :
-
-```bash
-nano .env
-```
-
-```env
-TWITTER_AUTH_TOKEN=votre_auth_token_ici
-```
-
-> Mettez à jour `.env` **et** les variables cPanel en cas d’erreur 403/503 sur Twitter.
+| URL | Description |
+| --- | --- |
+| `/twitter/user/Reuters` | Flux tweets (20 par défaut) |
+| `/twitter/user/Reuters/30` | Limite à 30 tweets |
+| `/twitter/user/Reuters/with_replies` | Inclure les réponses |
+| `/twitter/user/Reuters/exclude_rts` | Exclure les retweets |
+| `/twitter/user/Reuters/20/exclude_rts` | Combiner les options |
 
 ---
 
@@ -197,15 +107,18 @@ TWITTER_AUTH_TOKEN=votre_auth_token_ici
 
 ```
 rsshub-cpanel/
-├── app.js              # Point d'entrée cPanel (Passenger)
-├── package.json
-├── .env                # Secrets (non versionné)
-├── scripts/
-│   ├── prepare.sh      # Clone + build RSSHub (Terminal cPanel)
-│   └── prepare.mjs     # Logique de build
-└── RSSHub/             # Source RSSHub (git clone, non versionné)
-    ├── dist/
-    └── node_modules/
+├── index.php              # Routeur principal
+├── .htaccess              # Réécriture URL (Apache)
+├── config.php.example     # Configuration (copier → config.php)
+├── lib/
+│   ├── bootstrap.php
+│   ├── Cache.php          # Cache fichier
+│   ├── Http.php           # Requêtes cURL
+│   ├── Rss.php            # Génération RSS XML
+│   └── Twitter/
+│       ├── Client.php     # API GraphQL X
+│       └── UserFeed.php   # Route /twitter/user/:id
+└── cache/                 # Cache (auto-créé, inscriptible)
 ```
 
 ---
@@ -214,51 +127,34 @@ rsshub-cpanel/
 
 | Problème | Solution |
 | --- | --- |
-| `node: command not found` | Créez l’app dans **Setup Node.js App**, puis exécutez la commande `source /home/.../nodevenv/.../bin/activate` copiée depuis l’écran Edit |
-| `Cannot find module '.../nodevenv/.../lib/scripts/prepare.mjs'` | Mettez à jour le dépôt (`git pull`) — le script npm s’appelle `build-rsshub`, plus `prepare` |
-| `unable to create thread: Resource temporarily unavailable` | Supprimez le dossier incomplet `rm -rf RSSHub`, mettez à jour le dépôt (`git pull`), relancez `./scripts/prepare.sh` (le script utilise maintenant une archive GitHub, plus légère que `git clone`) |
-| `pnpm install` / `SIGABRT` / `pthread_create: Resource temporarily unavailable` | L’hébergement mutualisé ne peut pas compiler RSSHub — supprimez `rm -rf RSSHub`, mettez à jour (`git pull`), déclenchez le workflow **Build RSSHub bundle** sur GitHub, puis relancez `./scripts/prepare.sh` |
-| Page blanche / 503 | Logs Passenger ou `~/rsshub-cpanel/stderr.log` |
-| `RSSHub/dist/index.mjs` introuvable | Relancez `./scripts/prepare.sh` dans l’environnement virtuel |
-| Routes Twitter 403/503 | Régénérez `TWITTER_AUTH_TOKEN` dans `.env` **et** cPanel |
-| Application root incorrect | Doit pointer vers le dossier cloné : `/home/VOTRE_USER/rsshub-cpanel` |
-| SSL non actif | **SSL/TLS Status** → **Run AutoSSL** |
-
-### Commandes utiles (Terminal cPanel)
-
-```bash
-# 1. Activer Node (commande copiée depuis Setup Node.js App → Edit)
-source /home/VOTRE_USER/nodevenv/rsshub-cpanel/22/bin/activate && cd /home/VOTRE_USER/rsshub-cpanel
-
-# 2. Vérifier et builder
-node -v
-ls RSSHub/dist/index.mjs
-./scripts/prepare.sh
-npm install
-```
+| Page blanche | Activez les logs PHP dans cPanel ; vérifiez PHP 7.4+ |
+| `Configuration manquante` | Copiez `config.php.example` → `config.php` |
+| `Token X invalide` | Régénérez `auth_token` et `ct0` dans `config.php` |
+| `Impossible d'obtenir ct0` | Ajoutez `TWITTER_CT0` explicitement dans `config.php` |
+| 404 sur `/twitter/user/...` | Vérifiez que `mod_rewrite` est actif et `.htaccess` présent |
+| 503 / limite X | Attendez quelques minutes (rate limit) ; augmentez `CACHE_TTL` |
+| Erreur cache | `chmod 755 cache` ou `chmod 777 cache` |
 
 ---
 
-## Mise à jour RSSHub
+## Différences avec RSSHub Node.js
 
-1. GitHub → **Actions** → **Build RSSHub bundle** → **Run workflow** (génère un nouveau bundle)
-2. Sur le serveur :
+| | RSSHub Node.js | RSSHub PHP (ce projet) |
+| --- | --- | --- |
+| Hébergement cPanel | Stellar Plus+ (Node.js) | **Tous les plans** |
+| Routes supportées | 1000+ | **Twitter `/twitter/user/*`** |
+| Installation | Build lourd (pnpm, bundle) | **Upload + config.php** |
+| Maintenance | Mises à jour fréquentes | Légère |
+
+Ce projet couvre le cas d'usage principal du bot (flux Twitter). Pour d'autres sources (Reddit, YouTube, etc.), utilisez une instance RSSHub complète sur un VPS ou un service cloud.
+
+---
+
+## Mise à jour
 
 ```bash
-source /home/VOTRE_USER/nodevenv/rsshub-cpanel/22/bin/activate && cd /home/VOTRE_USER/rsshub-cpanel
+cd ~/rsshub.votredomaine.com
 git pull
-rm -rf RSSHub
-./scripts/prepare.sh
 ```
 
-3. cPanel → **Setup Node.js App** → **Restart**
-
-> Conservez votre `.env` — il n’est pas écrasé par `git pull`.
-
----
-
-## Notes
-
-- **Cache mémoire** : pas de Redis requis
-- **Cluster désactivé** : un seul processus (hébergement mutualisé)
-- Toutes les opérations se font via le **Terminal cPanel** — pas de build local ni d’upload ZIP
+Conservez votre `config.php` — il n'est pas versionné.

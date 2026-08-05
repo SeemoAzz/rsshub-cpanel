@@ -1,4 +1,5 @@
-.env
-node_modules/
-RSSHub/
+config.php
+cache/*
+!cache/.gitkeep
 *.log
+.DS_Store

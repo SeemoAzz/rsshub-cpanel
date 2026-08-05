@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * Configuration RSSHub PHP pour cPanel Namecheap.
+ * Copiez ce fichier en config.php et modifiez les valeurs.
+ */
+
+return [
+    // Cookie auth_token depuis https://x.com (F12 → Application → Cookies)
+    'TWITTER_AUTH_TOKEN' => 'votre_auth_token_ici',
+
+    // Cookie ct0 (recommandé — même page Cookies que auth_token)
+    // Si omis, l'app tente de le récupérer automatiquement.
+    'TWITTER_CT0' => 'votre_ct0_ici',
+
+    // Durée du cache fichier (secondes)
+    'CACHE_TTL' => 300,
+
+    // Dossier cache (doit être inscriptible)
+    'CACHE_DIR' => __DIR__ . '/cache',
+];
