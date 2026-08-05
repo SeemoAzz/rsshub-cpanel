@@ -215,8 +215,8 @@ rsshub-cpanel/
 | --- | --- |
 | `node: command not found` | Créez l’app dans **Setup Node.js App**, puis exécutez la commande `source /home/.../nodevenv/.../bin/activate` copiée depuis l’écran Edit |
 | `Cannot find module '.../nodevenv/.../lib/scripts/prepare.mjs'` | Mettez à jour le dépôt (`git pull`) — le script npm s’appelle `build-rsshub`, plus `prepare` |
-| `unable to create thread: Resource temporarily unavailable` | Limite mémoire du plan — relancez `./scripts/prepare.sh` ou passez à **Stellar Business** |
-| `pthread_create: Resource temporarily unavailable` | Idem — relancez le build ou upgradez le plan |
+| `unable to create thread: Resource temporarily unavailable` | Supprimez le dossier incomplet `rm -rf RSSHub`, mettez à jour le dépôt (`git pull`), relancez `./scripts/prepare.sh` (le script utilise maintenant une archive GitHub, plus légère que `git clone`) |
+| `pthread_create: Resource temporarily unavailable` | Idem — supprimez `RSSHub/`, relancez le build ; si le build échoue encore, passez à **Stellar Business** |
 | Page blanche / 503 | Logs Passenger ou `~/rsshub-cpanel/stderr.log` |
 | `RSSHub/dist/index.mjs` introuvable | Relancez `./scripts/prepare.sh` dans l’environnement virtuel |
 | Routes Twitter 403/503 | Régénérez `TWITTER_AUTH_TOKEN` dans `.env` **et** cPanel |
