@@ -12,73 +12,219 @@ Utilisé par le bot **Bot Récupération News** via l’URL configurée dans `rs
 | --- | --- |
 | Hébergement Namecheap | Plan **Stellar Plus**, **Stellar Business** ou **VPS** (Node.js requis) |
 | cPanel | Accès avec **Setup Node.js App** activé |
-| Node.js local | Version **22+** (pour préparer le build) |
-| Git | Pour cloner RSSHub en local |
+| Accès SSH | Recommandé (Terminal cPanel ou client SSH) |
+| Node.js | Version **22+** (sur le serveur ou en local) |
+| Git | Pour cloner le dépôt sur le serveur |
 | Sous-domaine | Recommandé : `rsshub.votredomaine.com` |
 
 > Les plans Stellar **Basic** / **EasyWP** ne proposent pas Node.js — vérifiez votre offre dans le portail Namecheap avant de commencer.
 
 ---
 
-## Vue d’ensemble
+## Deux méthodes de déploiement
 
-```
-1. Préparer le projet en local (clone + build RSSHub)
-2. Configurer le token X (Twitter)
-3. Créer le sous-domaine dans cPanel
-4. Uploader les fichiers sur le serveur
-5. Créer l’application Node.js dans cPanel
-6. Configurer les variables d’environnement
-7. Installer les dépendances et démarrer
-8. Activer HTTPS (SSL)
-9. Tester l’instance
-10. Connecter le bot
-```
+| Méthode | Quand l’utiliser |
+| --- | --- |
+| **[A — Git + SSH](#méthode-a--git--ssh-recommandée)** | Vous avez accès SSH/Terminal cPanel (recommandé) |
+| **[B — ZIP depuis Windows](#méthode-b--upload-zip-depuis-windows)** | Pas de SSH, ou build échoue sur le serveur (mémoire insuffisante) |
+
+> **Attention :** les scripts `.ps1` (`prepare.ps1`, `pack-deploy.ps1`) sont **Windows PowerShell uniquement**.  
+> Sur le serveur Linux (SSH/bash), utilisez **`./scripts/prepare.sh`** — jamais `.\scripts\pack-deploy.ps1`.
 
 ---
 
-## Étape 1 — Préparer le projet en local
+## Méthode A — Git + SSH (recommandée)
 
-### Windows
+### Vue d’ensemble
 
-```powershell
-cd "c:\Users\simohammed\Desktop\rsshub-cpanel"
-.\scripts\prepare.ps1
+```
+1. Créer le sous-domaine dans cPanel
+2. Se connecter en SSH (Terminal cPanel)
+3. git clone du dépôt
+4. ./scripts/prepare.sh  (build RSSHub sur le serveur)
+5. Configurer .env (token X)
+6. Créer l’application Node.js dans cPanel
+7. Variables d’environnement + npm install + Restart
+8. SSL + test
 ```
 
-### Linux / macOS
+### Étape A1 — Créer le sous-domaine dans cPanel
+
+1. cPanel → **Domains** → **Subdomains**
+2. **Subdomain** : `rsshub` · **Domain** : `votredomaine.com`
+3. Cliquez **Create**
+
+### Étape A2 — Ouvrir le terminal SSH
+
+**Option 1 — Terminal cPanel :** cPanel → **Advanced** → **Terminal**
+
+**Option 2 — Client SSH :**
 
 ```bash
-cd /chemin/vers/rsshub-cpanel
+ssh araszfcr@business112.web-hosting.com
+```
+
+(Remplacez par votre utilisateur et hostname Namecheap.)
+
+### Étape A3 — Cloner le dépôt
+
+```bash
+cd ~
+git clone https://github.com/SeemoAzz/rsshub-cpanel.git
+cd rsshub-cpanel
+```
+
+Vérifiez Node.js (22+ requis) :
+
+```bash
+node -v
+```
+
+Si `node` est introuvable ou trop ancien, activez Node.js 22 dans cPanel → **Setup Node.js App**, puis rechargez le shell ou utilisez le chemin indiqué par cPanel (ex. `source /home/VOTRE_USER/nodevenv/rsshub-cpanel/22/bin/activate`).
+
+### Étape A4 — Builder RSSHub sur le serveur
+
+```bash
 chmod +x scripts/prepare.sh
 ./scripts/prepare.sh
 ```
 
 Ce script :
 
-1. Installe `dotenv` à la racine du wrapper
-2. Clone [RSSHub](https://github.com/DIYgod/RSSHub) dans `RSSHub/` (si absent)
-3. Installe les dépendances RSSHub avec `pnpm`
-4. Compile RSSHub (`RSSHub/dist/`)
-5. Crée `.env` à partir de `.env.example` (s’il n’existe pas)
+1. Installe `dotenv` à la racine
+2. Clone [RSSHub](https://github.com/DIYgod/RSSHub) dans `RSSHub/`
+3. Installe les dépendances avec `pnpm`
+4. Compile RSSHub → `RSSHub/dist/`
+5. Crée `.env` depuis `.env.example` si absent
 
-Vérifiez que le build a réussi :
+Vérifiez le build :
 
-```powershell
-Test-Path RSSHub\dist\index.mjs   # doit retourner True
+```bash
+ls RSSHub/dist/index.mjs
+```
+
+> Si le build échoue (mémoire insuffisante), utilisez la [méthode B (ZIP)](#méthode-b--upload-zip-depuis-windows) en buildant sur votre PC.
+
+### Étape A5 — Configurer le token X
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Ajoutez votre cookie `auth_token` :
+
+```env
+TWITTER_AUTH_TOKEN=votre_auth_token_ici
+```
+
+Sauvegardez : `Ctrl+O` → Entrée → `Ctrl+X`.
+
+### Étape A6 — Créer l’application Node.js dans cPanel
+
+1. cPanel → **Setup Node.js App** → **Create Application**
+2. Paramètres :
+
+| Champ | Valeur |
+| --- | --- |
+| **Node.js version** | 22.x |
+| **Application mode** | Production |
+| **Application root** | `/home/VOTRE_USER/rsshub-cpanel` |
+| **Application URL** | `rsshub.votredomaine.com` |
+| **Application startup file** | `app.js` |
+
+3. Cliquez **Create**
+
+> Exemple : si votre user cPanel est `araszfcr`, le root est `/home/araszfcr/rsshub-cpanel`.
+
+### Étape A7 — Variables d’environnement
+
+Dans **Setup Node.js App** → votre app → **Environment variables** :
+
+| Variable | Valeur |
+| --- | --- |
+| `TWITTER_AUTH_TOKEN` | votre token X |
+| `CACHE_TYPE` | `memory` |
+| `LISTEN_INADDR_ANY` | `1` |
+| `ENABLE_CLUSTER` | `0` |
+| `NODE_ENV` | `production` |
+
+> Ne définissez **pas** `PORT` — cPanel/Passenger le gère.
+
+### Étape A8 — Démarrer l’application
+
+1. **Run NPM Install**
+2. **Restart**
+
+Consultez les logs en cas d’erreur : **Open logs** ou `~/rsshub-cpanel/stderr.log`.
+
+### Étape A9 — SSL et test
+
+1. cPanel → **SSL/TLS Status** → **Run AutoSSL** pour `rsshub.votredomaine.com`
+2. Testez : `https://rsshub.votredomaine.com/twitter/user/Reuters`
+
+### Étape A10 — Connecter le bot
+
+```yaml
+rsshub_url: https://rsshub.votredomaine.com
 ```
 
 ---
 
-## Étape 2 — Configurer le token X (Twitter)
+## Méthode B — Upload ZIP depuis Windows
+
+### Vue d’ensemble
+
+```
+1. Build en local (Windows)
+2. Créer deploy.zip
+3. Upload + extraction via File Manager cPanel
+4. Créer l’app Node.js + variables + Restart
+```
+
+### Étape B1 — Préparer en local (Windows)
+
+```powershell
+cd "c:\Users\simohammed\Desktop\rsshub-cpanel"
+.\scripts\prepare.ps1
+copy .env.example .env
+notepad .env
+.\scripts\pack-deploy.ps1
+```
+
+Vérifiez :
+
+```powershell
+Test-Path RSSHub\dist\index.mjs   # True
+```
+
+### Étape B2 — Upload sur cPanel
+
+1. **File Manager** → `/home/VOTRE_USER/`
+2. Créez `rsshub` (ou uploadez directement dans `rsshub-cpanel` si déjà cloné)
+3. Uploadez `deploy.zip` → **Extract**
+4. Copiez `.env.example` → `.env` et ajoutez `TWITTER_AUTH_TOKEN`
+
+Puis suivez les étapes **A6 à A9** (app Node.js, variables, SSL, test).
+
+---
+
+## Configurer le token X (Twitter)
 
 Les routes `/twitter/*` nécessitent un cookie `auth_token` valide.
 
-1. Connectez-vous sur [x.com](https://x.com) dans votre navigateur
-2. Ouvrez les outils développeur (**F12**) → **Application** → **Cookies** → `https://x.com`
-3. Copiez la valeur du cookie **`auth_token`**
-   - Ou utilisez l’extension [Cookie-Editor](https://cookie-editor.cgagnier.ca/)
-4. Collez-la dans `.env` :
+1. Connectez-vous sur [x.com](https://x.com)
+2. **F12** → **Application** → **Cookies** → `https://x.com` → copiez **`auth_token`**
+3. Collez-le dans `.env` :
+
+**SSH (serveur) :**
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+**Windows (local) :**
 
 ```powershell
 copy .env.example .env
@@ -89,196 +235,7 @@ notepad .env
 TWITTER_AUTH_TOKEN=votre_auth_token_ici
 ```
 
-> Le token expire après un certain temps. En cas d’erreur 403/503 sur les routes Twitter, régénérez-le et mettez à jour `.env` **et** les variables d’environnement cPanel.
-
----
-
-## Étape 3 — Créer le sous-domaine dans cPanel
-
-1. Connectez-vous à **cPanel** (Namecheap → **Hosting List** → **Go to cPanel**)
-2. Section **Domains** → **Subdomains**
-3. Créez un sous-domaine :
-   - **Subdomain** : `rsshub`
-   - **Domain** : `votredomaine.com`
-   - **Document Root** : laissez la valeur par défaut ou notez le chemin (ex. `/home/VOTRE_USER/rsshub.votredomaine.com`)
-4. Cliquez **Create**
-
-> Vous utiliserez ce sous-domaine comme **Application URL** lors de la création de l’app Node.js.
-
----
-
-## Étape 4 — Uploader les fichiers sur le serveur
-
-### Option A — Upload ZIP (recommandé)
-
-En local :
-
-```powershell
-.\scripts\pack-deploy.ps1
-```
-
-Cela crée `deploy.zip` contenant : `app.js`, `package.json`, `.env.example`, `RSSHub/dist/`, `RSSHub/node_modules/`, etc.
-
-Sur cPanel :
-
-1. **File Manager** → naviguez vers `/home/VOTRE_USER/`
-2. Créez le dossier **`rsshub`** (ex. `/home/VOTRE_USER/rsshub`)
-3. Entrez dans ce dossier
-4. Cliquez **Upload** → uploadez `deploy.zip`
-5. Retournez dans le dossier → clic droit sur `deploy.zip` → **Extract**
-6. Supprimez `deploy.zip` après extraction (optionnel, libère de l’espace)
-
-### Option B — Upload complet via File Manager / FTP
-
-Uploadez **tout le dossier** `rsshub-cpanel` **sauf** :
-
-- `node_modules/` à la racine (seul `dotenv` est installé sur le serveur via npm)
-- `.git/` si présent
-
-**Fichiers obligatoires sur le serveur :**
-
-```
-/home/VOTRE_USER/rsshub/
-├── app.js
-├── package.json
-├── package-lock.json
-├── .env                    ← à créer (voir étape 6)
-├── .env.example
-└── RSSHub/
-    ├── dist/               ← build compilé
-    ├── node_modules/       ← requis (build lourd à refaire sur le serveur)
-    ├── assets/
-    ├── public/
-    └── package.json
-```
-
-### Créer le fichier `.env` sur le serveur
-
-Dans **File Manager**, dans `/home/VOTRE_USER/rsshub/` :
-
-1. Copiez `.env.example` → renommez la copie en **`.env`**
-2. Éditez `.env` et ajoutez votre `TWITTER_AUTH_TOKEN`
-
----
-
-## Étape 5 — Créer l’application Node.js dans cPanel
-
-1. cPanel → section **Software** → **Setup Node.js App**
-2. Cliquez **Create Application**
-3. Remplissez les champs :
-
-| Champ | Valeur |
-| --- | --- |
-| **Node.js version** | **22.x** (ou la plus récente disponible) |
-| **Application mode** | **Production** |
-| **Application root** | `/home/VOTRE_USER/rsshub` |
-| **Application URL** | `rsshub.votredomaine.com` |
-| **Application startup file** | `app.js` |
-
-4. Cliquez **Create**
-
-> Remplacez `VOTRE_USER` par votre identifiant cPanel (visible en haut de File Manager, ex. `abcxyz`).
-
----
-
-## Étape 6 — Configurer les variables d’environnement
-
-Dans **Setup Node.js App**, ouvrez votre application → section **Environment variables** → **Add variable** pour chaque entrée :
-
-| Variable | Valeur | Description |
-| --- | --- | --- |
-| `TWITTER_AUTH_TOKEN` | `votre_token` | Cookie X pour les routes Twitter |
-| `CACHE_TYPE` | `memory` | Cache en RAM (pas de Redis requis) |
-| `LISTEN_INADDR_ANY` | `1` | Écoute sur toutes les interfaces (Apache/Passenger) |
-| `ENABLE_CLUSTER` | `0` | Un seul processus (mutualisé) |
-| `NODE_ENV` | `production` | Mode production |
-
-Variables optionnelles :
-
-| Variable | Valeur | Description |
-| --- | --- | --- |
-| `ACCESS_KEY` | `ma_cle_secrete` | Protège l’instance (ajoutez `?key=...` aux URLs) |
-
-> **Ne définissez pas `PORT` manuellement** — cPanel/Passenger l’injecte automatiquement.
-
-Cliquez **Save** après chaque variable.
-
----
-
-## Étape 7 — Installer les dépendances et démarrer
-
-Toujours dans **Setup Node.js App**, sur la fiche de votre application :
-
-1. Cliquez **Run NPM Install**
-   - Installe `dotenv` (dépendance racine du wrapper)
-   - Attendez le message de succès
-2. Cliquez **Restart** (ou **Stop** puis **Start**)
-
-### Vérifier les logs
-
-En cas de problème, consultez :
-
-- **Setup Node.js App** → bouton **Open logs** ou lien vers les logs Passenger
-- **File Manager** → `/home/VOTRE_USER/rsshub/stderr.log` (si présent)
-
-Erreur fréquente :
-
-```
-RSSHub/dist/index.mjs introuvable
-```
-
-→ Relancez `.\scripts\prepare.ps1` en local, recréez `deploy.zip`, re-uploadez.
-
----
-
-## Étape 8 — Activer HTTPS (SSL)
-
-1. cPanel → **Security** → **SSL/TLS Status**
-2. Cochez votre sous-domaine `rsshub.votredomaine.com`
-3. Cliquez **Run AutoSSL** (Let’s Encrypt gratuit via Namecheap)
-
-Ou : **SSL/TLS** → **Manage SSL sites** → installez un certificat pour le sous-domaine.
-
-Attendez quelques minutes, puis testez en `https://`.
-
----
-
-## Étape 9 — Tester l’instance
-
-Ouvrez dans le navigateur :
-
-```
-https://rsshub.votredomaine.com/twitter/user/Reuters
-```
-
-Vous devez obtenir un flux RSS XML.
-
-Autres tests utiles :
-
-| URL | Attendu |
-| --- | --- |
-| `https://rsshub.votredomaine.com/` | Page d’accueil RSSHub |
-| `https://rsshub.votredomaine.com/bbc/world` | Flux BBC (sans token X) |
-
-Si vous avez défini `ACCESS_KEY` :
-
-```
-https://rsshub.votredomaine.com/twitter/user/Reuters?key=ma_cle_secrete
-```
-
----
-
-## Étape 10 — Connecter le bot
-
-Dans le projet **Bot Récupération News**, mettez à jour `config.yaml` :
-
-```yaml
-rsshub_url: https://rsshub.votredomaine.com
-```
-
-Ou via l’interface web → **Configuration** → **URL RSSHub**.
-
-Le bot utilise **x2rss** en fallback si RSSHub est indisponible.
+> Mettez à jour `.env` **et** les variables cPanel en cas d’erreur 403/503 sur Twitter.
 
 ---
 
@@ -305,49 +262,56 @@ rsshub-cpanel/
 
 | Problème | Solution |
 | --- | --- |
-| Page blanche / 503 | Consultez les logs Passenger et `stderr.log` dans le dossier de l’app |
-| `RSSHub/dist/index.mjs` introuvable | Relancez `prepare.ps1` en local, re-uploadez `deploy.zip` |
-| Routes Twitter 403/503 | Régénérez `TWITTER_AUTH_TOKEN`, mettez à jour `.env` **et** cPanel |
-| Mémoire insuffisante au build | Buildez toujours en local ; uploadez `dist/` + `node_modules/` |
-| `npm install` échoue sur le serveur | Uploadez `RSSHub/node_modules/` depuis votre PC via ZIP |
-| App ne démarre pas après redémarrage cPanel | Setup Node.js App → **Restart** ; vérifiez que `app.js` est le startup file |
-| Erreur « Application root not found » | Vérifiez le chemin exact dans File Manager (`/home/USER/rsshub`) |
-| Sous-domaine affiche la page par défaut | L’Application URL doit correspondre au sous-domaine créé à l’étape 3 |
-| SSL non actif | Relancez AutoSSL ; attendez la propagation DNS (jusqu’à 24 h) |
-| `EADDRINUSE` ou port | Ne définissez pas `PORT` dans `.env` — laissez Passenger gérer |
+| `bash: .scriptspack-deploy.ps1: command not found` | Vous êtes sur **Linux/SSH** : utilisez `./scripts/prepare.sh`, pas `.\scripts\pack-deploy.ps1` (Windows) |
+| `node: command not found` | Activez Node.js 22 dans **Setup Node.js App**, puis `source` l’environnement virtuel indiqué par cPanel |
+| Page blanche / 503 | Logs Passenger ou `~/rsshub-cpanel/stderr.log` |
+| `RSSHub/dist/index.mjs` introuvable | Relancez `./scripts/prepare.sh` (SSH) ou re-uploadez un ZIP buildé en local |
+| Routes Twitter 403/503 | Régénérez `TWITTER_AUTH_TOKEN` dans `.env` **et** cPanel |
+| Build échoue (mémoire) | Passez à la [méthode B](#méthode-b--upload-zip-depuis-windows) |
+| Application root incorrect | Doit pointer vers le dossier cloné : `/home/VOTRE_USER/rsshub-cpanel` |
+| SSL non actif | **SSL/TLS Status** → **Run AutoSSL** |
 
-### Commandes utiles cPanel (terminal SSH si disponible)
+### Commandes utiles (SSH)
 
 ```bash
-cd ~/rsshub
-node -v                    # vérifier Node.js
-ls RSSHub/dist/index.mjs   # vérifier le build
-npm install                # réinstaller dotenv si besoin
+cd ~/rsshub-cpanel
+node -v
+ls RSSHub/dist/index.mjs
+./scripts/prepare.sh
+npm install
 ```
 
 ---
 
 ## Mise à jour RSSHub
 
-```powershell
-cd RSSHub
+### Via Git + SSH (recommandé)
+
+```bash
+cd ~/rsshub-cpanel
 git pull
-cd ..
+./scripts/prepare.sh
+```
+
+Puis cPanel → **Setup Node.js App** → **Restart**.
+
+> Conservez votre `.env` — il n’est pas écrasé par `git pull`.
+
+### Via ZIP (Windows)
+
+```powershell
+cd RSSHub; git pull; cd ..
 node scripts/prepare.mjs
 .\scripts\pack-deploy.ps1
 ```
 
-Puis sur cPanel :
-
-1. Uploadez et extrayez le nouveau `deploy.zip` (écrasez les anciens fichiers)
-2. Conservez votre `.env` existant sur le serveur
-3. **Setup Node.js App** → **Run NPM Install** → **Restart**
+Uploadez `deploy.zip` sur cPanel, puis **Restart**.
 
 ---
 
 ## Notes
 
-- **Cache mémoire** : pas de Redis requis (adapté à l’hébergement mutualisé Namecheap).
-- **Cluster désactivé** : un seul processus pour limiter l’usage CPU/RAM.
-- **Build local obligatoire** : les plans mutualisés n’ont pas assez de RAM pour compiler RSSHub sur le serveur.
-- Le token X expire régulièrement — prévoyez une mise à jour périodique.
+- **Scripts** : `.ps1` = Windows · `.sh` = Linux/SSH (serveur cPanel)
+- **Cache mémoire** : pas de Redis requis
+- **Cluster désactivé** : un seul processus (mutualisé)
+- Si le build SSH échoue faute de RAM, buildez en local et uploadez le ZIP
