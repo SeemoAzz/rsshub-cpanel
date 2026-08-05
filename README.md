@@ -327,6 +327,8 @@ rsshub-cpanel/
 | --- | --- |
 | `bash: .scriptspack-deploy.ps1: command not found` | Script **Windows** — sur Terminal cPanel utilisez `./scripts/prepare.sh` |
 | `node: command not found` | **Normal** avant création de l’app Node.js. Créez l’app dans **Setup Node.js App**, puis exécutez la commande `source /home/.../nodevenv/.../bin/activate` copiée depuis l’écran Edit |
+| `Cannot find module '.../nodevenv/.../lib/scripts/prepare.mjs'` | Mettez à jour le dépôt (`git pull`) — le script npm s’appelle maintenant `build-rsshub`, plus `prepare` |
+| `pthread_create: Resource temporarily unavailable` | Limite RAM/processus du mutualisé — buildez en local ([méthode B](#méthode-b--upload-zip-depuis-windows)) |
 | `node -v` fonctionne mais `./scripts/prepare.sh` échoue | Relancez `./scripts/prepare.sh` **dans** l’environnement virtuel (`source ...` d’abord) |
 | Page blanche / 503 | Logs Passenger ou `~/rsshub-cpanel/stderr.log` |
 | `RSSHub/dist/index.mjs` introuvable | Relancez `./scripts/prepare.sh` (SSH) ou re-uploadez un ZIP buildé en local |

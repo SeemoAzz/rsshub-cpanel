@@ -7,8 +7,9 @@ cd "$ROOT"
 command -v node >/dev/null || { echo "Node.js 22+ requis"; exit 1; }
 command -v git >/dev/null || { echo "Git requis"; exit 1; }
 
-npm install
-node scripts/prepare.mjs
+# --ignore-scripts : évite le conflit avec l'environnement virtuel cPanel (nodevenv)
+npm install --ignore-scripts --prefix "$ROOT"
+node "$ROOT/scripts/prepare.mjs"
 
 if [[ ! -f .env ]]; then
   cp .env.example .env

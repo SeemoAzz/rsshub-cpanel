@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "prepare": "node scripts/prepare.mjs",
+    "build-rsshub": "node scripts/prepare.mjs",
     "start": "node app.js"
   },
   "dependencies": {

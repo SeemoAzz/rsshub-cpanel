@@ -13,7 +13,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 }
 
 Set-Location $root
-npm install
+npm install --ignore-scripts
 node scripts/prepare.mjs
 
 $envExample = Join-Path $root ".env.example"
