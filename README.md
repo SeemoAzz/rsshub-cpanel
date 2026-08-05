@@ -112,10 +112,11 @@ chmod +x scripts/prepare.sh
 Ce script :
 
 1. Installe `dotenv` à la racine
-2. Clone [RSSHub](https://github.com/DIYgod/RSSHub) dans `RSSHub/`
-3. Installe les dépendances avec `pnpm`
-4. Compile RSSHub → `RSSHub/dist/`
-5. Crée `.env` depuis `.env.example` si absent
+2. Télécharge un **bundle RSSHub précompilé** (GitHub Releases) — pas de compilation sur le serveur
+3. En secours seulement : compile RSSHub localement si le bundle est indisponible
+4. Crée `.env` depuis `.env.example` si absent
+
+> **Première installation :** le bundle est généré par GitHub Actions. Si `./scripts/prepare.sh` indique que le bundle est introuvable, allez sur GitHub → **Actions** → **Build RSSHub bundle** → **Run workflow**, attendez 5–10 min, puis relancez le script.
 
 Vérifiez le build :
 
@@ -216,7 +217,7 @@ rsshub-cpanel/
 | `node: command not found` | Créez l’app dans **Setup Node.js App**, puis exécutez la commande `source /home/.../nodevenv/.../bin/activate` copiée depuis l’écran Edit |
 | `Cannot find module '.../nodevenv/.../lib/scripts/prepare.mjs'` | Mettez à jour le dépôt (`git pull`) — le script npm s’appelle `build-rsshub`, plus `prepare` |
 | `unable to create thread: Resource temporarily unavailable` | Supprimez le dossier incomplet `rm -rf RSSHub`, mettez à jour le dépôt (`git pull`), relancez `./scripts/prepare.sh` (le script utilise maintenant une archive GitHub, plus légère que `git clone`) |
-| `pthread_create: Resource temporarily unavailable` | Idem — supprimez `RSSHub/`, relancez le build ; si le build échoue encore, passez à **Stellar Business** |
+| `pnpm install` / `SIGABRT` / `pthread_create: Resource temporarily unavailable` | L’hébergement mutualisé ne peut pas compiler RSSHub — supprimez `rm -rf RSSHub`, mettez à jour (`git pull`), déclenchez le workflow **Build RSSHub bundle** sur GitHub, puis relancez `./scripts/prepare.sh` |
 | Page blanche / 503 | Logs Passenger ou `~/rsshub-cpanel/stderr.log` |
 | `RSSHub/dist/index.mjs` introuvable | Relancez `./scripts/prepare.sh` dans l’environnement virtuel |
 | Routes Twitter 403/503 | Régénérez `TWITTER_AUTH_TOKEN` dans `.env` **et** cPanel |
@@ -240,13 +241,17 @@ npm install
 
 ## Mise à jour RSSHub
 
+1. GitHub → **Actions** → **Build RSSHub bundle** → **Run workflow** (génère un nouveau bundle)
+2. Sur le serveur :
+
 ```bash
 source /home/VOTRE_USER/nodevenv/rsshub-cpanel/22/bin/activate && cd /home/VOTRE_USER/rsshub-cpanel
 git pull
+rm -rf RSSHub
 ./scripts/prepare.sh
 ```
 
-Puis cPanel → **Setup Node.js App** → **Restart**.
+3. cPanel → **Setup Node.js App** → **Restart**
 
 > Conservez votre `.env` — il n’est pas écrasé par `git pull`.
 

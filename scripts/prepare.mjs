@@ -6,8 +6,11 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const appDir = path.join(root, 'RSSHub');
-const RSSHUB_ARCHIVE =
+const RSSHUB_SOURCE_ARCHIVE =
   'https://github.com/DIYgod/RSSHub/archive/refs/heads/master.tar.gz';
+const RSSHUB_BUNDLE_URL =
+  process.env.RSSHUB_BUNDLE_URL ||
+  'https://github.com/SeemoAzz/rsshub-cpanel/releases/download/rsshub-bundle/rsshub-bundle.tar.gz';
 
 function run(cmd, cwd = root) {
   console.log(`> ${cmd}`);
@@ -18,12 +21,8 @@ function runCapture(cmd, cwd = root) {
   return execSync(cmd, { cwd, encoding: 'utf8', shell: true }).trim();
 }
 
-function pnpm(args, cwd) {
-  run(`npx --yes pnpm ${args}`, cwd);
-}
-
-function isValidRsshubSource(dir) {
-  return fs.existsSync(path.join(dir, 'package.json'));
+function isRsshubReady(dir) {
+  return fs.existsSync(path.join(dir, 'dist', 'index.mjs'));
 }
 
 function removeDir(dir) {
@@ -41,32 +40,60 @@ function hasCommand(name) {
   }
 }
 
-function downloadArchive(dest) {
+function downloadFile(url, dest) {
   if (hasCommand('curl')) {
-    run(`curl -fsSL -o "${dest}" "${RSSHUB_ARCHIVE}"`);
+    run(`curl -fsSL -o "${dest}" "${url}"`);
     return;
   }
   if (hasCommand('wget')) {
-    run(`wget -q -O "${dest}" "${RSSHUB_ARCHIVE}"`);
+    run(`wget -q -O "${dest}" "${url}"`);
     return;
   }
   throw new Error('curl ou wget requis pour télécharger RSSHub');
 }
 
-function extractArchive(archivePath, extractDir) {
+function extractTarball(archivePath, extractDir) {
   removeDir(extractDir);
   fs.mkdirSync(extractDir, { recursive: true });
   run(`tar -xzf "${archivePath}" -C "${extractDir}"`);
 }
 
-function downloadViaTarball() {
+function installBundleContents(extractDir) {
+  removeDir(appDir);
+  fs.mkdirSync(appDir, { recursive: true });
+
+  for (const item of ['dist', 'node_modules', 'package.json']) {
+    const src = path.join(extractDir, item);
+    if (!fs.existsSync(src)) {
+      throw new Error(`Élément manquant dans le bundle: ${item}`);
+    }
+    fs.renameSync(src, path.join(appDir, item));
+  }
+}
+
+function downloadPrebuiltBundle() {
+  const archivePath = path.join(root, '.rsshub-bundle.tar.gz');
+  const extractDir = path.join(root, '.rsshub-extract');
+
+  try {
+    console.log('Téléchargement du bundle RSSHub précompilé...');
+    downloadFile(RSSHUB_BUNDLE_URL, archivePath);
+    extractTarball(archivePath, extractDir);
+    installBundleContents(extractDir);
+  } finally {
+    fs.rmSync(archivePath, { force: true });
+    removeDir(extractDir);
+  }
+}
+
+function downloadSourceViaTarball() {
   const archivePath = path.join(root, '.rsshub-master.tar.gz');
   const extractDir = path.join(root, '.rsshub-extract');
 
   try {
-    console.log('Téléchargement de RSSHub via archive GitHub...');
-    downloadArchive(archivePath);
-    extractArchive(archivePath, extractDir);
+    console.log('Téléchargement des sources RSSHub via archive GitHub...');
+    downloadFile(RSSHUB_SOURCE_ARCHIVE, archivePath);
+    extractTarball(archivePath, extractDir);
 
     const extracted = fs
       .readdirSync(extractDir)
@@ -91,8 +118,8 @@ function cloneViaGit() {
   );
 }
 
-function fetchRsshub() {
-  if (isValidRsshubSource(appDir)) {
+function fetchSource() {
+  if (fs.existsSync(path.join(appDir, 'package.json'))) {
     return;
   }
 
@@ -101,9 +128,8 @@ function fetchRsshub() {
     removeDir(appDir);
   }
 
-  // Archive GitHub first: lighter on shared hosting thread limits than git clone.
   try {
-    downloadViaTarball();
+    downloadSourceViaTarball();
   } catch (archiveError) {
     console.warn(`Archive GitHub échouée: ${archiveError.message}`);
     removeDir(appDir);
@@ -112,28 +138,92 @@ function fetchRsshub() {
       cloneViaGit();
     } catch (gitError) {
       throw new Error(
-        `Impossible de récupérer RSSHub.\n` +
+        `Impossible de récupérer les sources RSSHub.\n` +
           `- Archive: ${archiveError.message}\n` +
-          `- Git: ${gitError.message}\n` +
-          `Relancez ./scripts/prepare.sh ou contactez l'hébergeur si les limites mémoire persistent.`,
+          `- Git: ${gitError.message}`,
       );
     }
   }
 
-  if (!isValidRsshubSource(appDir)) {
+  if (!fs.existsSync(path.join(appDir, 'package.json'))) {
     removeDir(appDir);
-    throw new Error('RSSHub téléchargé mais source invalide (package.json manquant)');
+    throw new Error('Sources RSSHub invalides (package.json manquant)');
   }
 }
 
-fetchRsshub();
+function ensurePnpm() {
+  try {
+    runCapture('pnpm --version');
+    return;
+  } catch {
+    // corepack ships with Node 22 and avoids npx downloading pnpm on each run
+  }
 
-console.log('Installation des dépendances RSSHub...');
-pnpm('install', appDir);
+  run('corepack enable');
+  run('corepack prepare pnpm@10.34.5 --activate');
+}
 
-console.log('Build RSSHub...');
-pnpm('build', appDir);
+function pnpm(args, cwd) {
+  ensurePnpm();
+  const env =
+    'NODE_OPTIONS="--max-old-space-size=512" UV_THREADPOOL_SIZE=2';
+  run(
+    `${env} pnpm ${args} --config.network-concurrency=1 --config.child-concurrency=1`,
+    cwd,
+  );
+}
+
+function buildFromSource() {
+  fetchSource();
+
+  console.log('Installation des dépendances RSSHub...');
+  pnpm('install', appDir);
+
+  console.log('Build RSSHub...');
+  pnpm('build', appDir);
+
+  console.log('Nettoyage des dépendances de développement...');
+  pnpm('prune --prod', appDir);
+}
+
+function prepareRsshub() {
+  if (isRsshubReady(appDir)) {
+    console.log('RSSHub déjà prêt.');
+    return;
+  }
+
+  if (fs.existsSync(appDir)) {
+    console.log('Installation RSSHub incomplète détectée, nettoyage...');
+    removeDir(appDir);
+  }
+
+  try {
+    downloadPrebuiltBundle();
+  } catch (bundleError) {
+    console.warn(`Bundle précompilé indisponible: ${bundleError.message}`);
+    console.warn('Tentative de compilation locale (peut échouer sur hébergement mutualisé)...');
+    removeDir(appDir);
+
+    try {
+      buildFromSource();
+    } catch (buildError) {
+      throw new Error(
+        `Impossible d'installer RSSHub sur ce serveur.\n` +
+          `- Bundle précompilé: ${bundleError.message}\n` +
+          `- Build local: ${buildError.message}\n` +
+          `Déclenchez le workflow GitHub "Build RSSHub bundle", attendez la release, puis relancez ./scripts/prepare.sh`,
+      );
+    }
+  }
+
+  if (!isRsshubReady(appDir)) {
+    removeDir(appDir);
+    throw new Error('RSSHub installé mais dist/index.mjs est introuvable');
+  }
+}
+
+prepareRsshub();
 
 console.log('');
-console.log('Build RSSHub terminé.');
+console.log('RSSHub prêt.');
 console.log('Prochaine étape : cp .env.example .env puis configurez TWITTER_AUTH_TOKEN');
