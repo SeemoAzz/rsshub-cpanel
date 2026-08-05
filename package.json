@@ -1,0 +1,16 @@
+{
+  "name": "rsshub-cpanel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RSSHub self-hosted pour cPanel Namecheap",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "node scripts/prepare.mjs",
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.0"
+  }
+}

@@ -1,0 +1,5 @@
+.env
+node_modules/
+RSSHub/
+deploy.zip
+*.log
