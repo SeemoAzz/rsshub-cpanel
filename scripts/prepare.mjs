@@ -28,5 +28,5 @@ console.log('Build RSSHub...');
 pnpm('build', appDir);
 
 console.log('');
-console.log('Prêt pour le déploiement cPanel.');
-console.log('Prochaine étape : copiez .env.example vers .env et configurez TWITTER_AUTH_TOKEN');
+console.log('Build RSSHub terminé.');
+console.log('Prochaine étape : cp .env.example .env puis configurez TWITTER_AUTH_TOKEN');

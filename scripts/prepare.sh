@@ -18,4 +18,4 @@ if [[ ! -f .env ]]; then
 fi
 
 echo ""
-echo "Déploiement : uploadez ce dossier sur cPanel (voir README.md)"
+echo "Build terminé. Configurez .env puis redémarrez l'app dans Setup Node.js App."
